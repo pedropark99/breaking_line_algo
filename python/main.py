@@ -13,13 +13,37 @@ class BlockType(Enum):
 	PENALTY = 3
 
 
-class BlockIndexes:
-	block_type = BlockType(1)
-	block_width = 0.0
-	shrink_factor = 0.0
-	stretch_factor = 0.0
-	penalty_factor = 0.0
-	flag = 0
+class Block:
+    def __init__(self, char, width):
+        self.char = char
+        self.block_width = width
+        self.penalty_factor = 0.0
+        self.flag = 0
+
+        if char == " ":
+            self.block_type = BlockType(1)
+            self.shrink_factor = 0.3
+            self.stretch_factor = 0.6
+        else:
+            self.block_type = BlockType(2)
+            self.stretch_factor = 0.0
+            self.shrink_factor = 0.0
+
+    def print(self):
+        message = "[BLOCK]:\n"
+        message += f"- Type: {self.block_type}\n"
+        message += f"- Width: {self.block_width}\n"
+        message += f"- Char: {self.char}\n"
+        print(message)
 
 
+blocks = list()
+for index, row in glyph_positions.iterrows():
+    current_char = row["character"]
+    width = row["x_advance"]
+    blocks.append(Block(current_char, width))
+
+
+# for block in blocks:
+#     block.print()
 
