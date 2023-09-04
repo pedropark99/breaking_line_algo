@@ -1,4 +1,3 @@
-from numpy import who
 import pandas as pd
 from enum import Enum
 
