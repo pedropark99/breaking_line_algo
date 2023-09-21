@@ -11,6 +11,7 @@ if n_rows == 0:
 print(glyph_positions)
 
 
+DESIRED_LINE_WIDTH = 900
 CURRENT_FONT_SIZE = 35
 EM_UNIT = CURRENT_FONT_SIZE
 SHRINK_FACTOR = (1 / 9)
@@ -155,6 +156,7 @@ def get_total_width_at_range(start_index, end_index):
     }
 
 
+
 start_index_of_current_line = 0
 for index in range(len(paragraph_items)):
     current_item = paragraph_items[index]
@@ -163,6 +165,15 @@ for index in range(len(paragraph_items)):
             start_index_of_current_line,
             index
         )
+
+        width_perfect_fit = current_line_width['total_width'] == DESIRED_LINE_WIDTH
+        width_smaller_than_ideal = current_line_width['total_width'] < DESIRED_LINE_WIDTH
+        width_bigger_than_ideal = current_line_width['total_width'] > DESIRED_LINE_WIDTH
+        can_stretch_to_ideal = (current_line_width['total_width'] + current_line_width['total_stretch']) >= DESIRED_LINE_WIDTH
+        can_shrink_to_ideal = (current_line_width['total_width'] - current_line_width['total_shrink']) <= DESIRED_LINE_WIDTH
+ 
+        if width_smaller_than_ideal and can_stretch_to_ideal:
+            continue
 
 
 
