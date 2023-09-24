@@ -145,7 +145,9 @@ for index in range(n_rows - 1):
 paragraph_items.append(penalty(-1000, 0, 0.0))
 potential_breaks_indexes.append(len(paragraph_items) - 1)
 
-print(potential_breaks_indexes)
+print("====================")
+print("Number of potential line breaks found: ", len(potential_breaks_indexes))
+print("====================")
 
 def calc_total_width_at_range(start_index, end_index):
     items = paragraph_items[start_index:end_index]
@@ -259,9 +261,9 @@ class BreakpointNode:
         self.index = index
     
 
-active_nodes = LinkedList()
-active_nodes.insertAtBegin({
-    'current_line': 0,
+active_paths = [LinkedList()]
+active_paths[0].insertAtBegin({
+    'current_line': 1,
     'line_start_position': 0,
     'line_width': 0.0,
     'line_sthretch': 0.0,
@@ -270,39 +272,59 @@ active_nodes.insertAtBegin({
 })
 
 
-active_node = active_nodes.head
-while(True):
-    line_start_position = active_node.data['line_start_position']
-    # The for loop below should start from the beginning of the current line being analyzed
-    index = line_start_position
-    for index in range(len(total_width)):
 
-        current_item = paragraph_items[index]
-        current_width = total_width[index] - active_node.data['line_width']
-        current_stretch = total_sthretch[index] - active_node.data['line_sthretch']
-        current_shrink = total_shrink[index] - active_node.data['line_shrink']
+for active_node in active_paths:
+    line_start_position = active_node.head.data['line_start_position']
+    current_best_break = {
+        'break_position': None,
+        'optimum_factor': 1e+10 # Random high number
+    }
+
+    for index in potential_breaks_indexes:
+        if index <= line_start_position:
+            continue
+
+        potential_break_position = potential_breaks_indexes[index]
+
+        current_item = paragraph_items[potential_break_position]
+        current_width = total_width[potential_break_position] - active_node.head.data['line_width']
+        current_stretch = total_sthretch[potential_break_position] - active_node.head.data['line_sthretch']
+        current_shrink = total_shrink[potential_break_position] - active_node.head.data['line_shrink']
 
         if (current_width - current_shrink) > DESIRED_LINE_WIDTH:
             # Line is much longer than the ideal, break
             print("Line is too long, going to check options for next active node")
             break
 
-        if (is_penalty_item(current_item)):
-            adjustment_ratio = calc_adjustment_ratio(
-                current_width, current_stretch, current_shrink
-            )
-            badness_factor = calc_badness_factor(adjustment_ratio)
-            optimum_factor = calc_optimum_factor(
-                badness_factor,
-                current_item.penalty_factor,
-                current_item.flag
-            )
+        adjustment_ratio = calc_adjustment_ratio(
+            current_width,
+            current_stretch,
+            current_shrink
+        )
+        badness_factor = calc_badness_factor(adjustment_ratio)
+        optimum_factor = calc_optimum_factor(
+            badness_factor,
+            current_item.penalty_factor,
+            current_item.flag
+        )
 
 
+        if optimum_factor <= current_best_break['optimum_factor']:
+            current_best_break = {
+                'break_position': potential_break_position,
+                'optimum_factor': optimum_factor
+            }
 
-    if active_node.next == None:
-        break
     
-    active_node = active_node.next
+    active_node.insertAtBegin({
+        'current_line': active_node.head.data['current_line'],
+        'line_start_position': potential_break_position,
+        'line_width': current_width,
+        'line_sthretch': current_stretch,
+        'line_shrink': current_shrink,
+        'cumulative_optimum_factor': active_node.head.data['cumulative_optimum_factor'] + optimum_factor
+    })
 
 
+active_node = active_paths[0]
+print(active_node.head.data)
