@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 from enum import Enum
 import math
 
@@ -119,6 +120,7 @@ symbols = set([
 chars = glyph_positions["character"]
 glyph_widths = glyph_positions["x_advance"]
 paragraph_items = list()
+potential_breaks_indexes = list()
 for index in range(n_rows - 1):
     current_width = glyph_widths[index]
     current_char = chars[index]
@@ -129,7 +131,9 @@ for index in range(n_rows - 1):
         continue
     
     elif current_char != " " and next_char == " ":
+        paragraph_items.append(block(current_char, current_width))
         paragraph_items.append(penalty(0.0, 0, 0.0))
+        potential_breaks_indexes.append(len(paragraph_items) - 1)
         continue
 
     else:
@@ -139,10 +143,11 @@ for index in range(n_rows - 1):
 # Including the final penalty item in the paragraph which needs to
 # be a forced breakpoint
 paragraph_items.append(penalty(-1000, 0, 0.0))
+potential_breaks_indexes.append(len(paragraph_items) - 1)
 
+print(potential_breaks_indexes)
 
-
-def get_total_width_at_range(start_index, end_index):
+def calc_total_width_at_range(start_index, end_index):
     items = paragraph_items[start_index:end_index]
     widths, stretchs, shrinks = list(), list(), list()
     for item in items:
@@ -177,10 +182,16 @@ def calc_adjustment_ratio(total_width, total_stretch, total_shrink):
     adjustment_ratio = 0.0
 
     if total_width < DESIRED_LINE_WIDTH:
-        adjustment_ratio = (DESIRED_LINE_WIDTH - total_width) / total_stretch
+        if total_stretch > 0:
+            adjustment_ratio = (DESIRED_LINE_WIDTH - total_width) / total_stretch
+        else:
+            adjustment_ratio = 10000
     
     if total_width > DESIRED_LINE_WIDTH:
-        adjustment_ratio = (DESIRED_LINE_WIDTH - total_width) / total_shrink
+        if total_shrink > 0:
+            adjustment_ratio = (DESIRED_LINE_WIDTH - total_width) / total_shrink
+        else:
+            adjustment_ratio = -10000
     
     return adjustment_ratio
 
@@ -211,37 +222,87 @@ def calc_optimum_factor(badness_factor, penalty_factor, hyphen_flag):
 
 
 
+total_width = np.cumsum([item.width for item in paragraph_items])
+total_sthretch = np.cumsum([item.sthretch_factor for item in paragraph_items])
+total_shrink = np.cumsum([item.shrink_factor for item in paragraph_items])
 
 
+class Node:
+    def __init__(self, data):
+        self.data = data
+        self.next = None
 
 
-line_breaks = list()
-line_start_index = 0
-for index in range(len(paragraph_items)):
-    current_item = paragraph_items[index]
-    if is_penalty_item(current_item):
-        current_line_width = get_total_width_at_range(
-            line_start_index,
-            index
-        )
+class LinkedList:
+    def __init__(self):
+        self.head = None
 
-        line_break = possible_line_break(
-            index,
-            line_start_index,
-            current_item.penalty_factor,
-            current_line_width
-        )
+    def insertAtBegin(self, data):
+        new_node = Node(data)
+        if self.head is None:
+            self.head = new_node
+            return
+        else:
+            new_node.next = self.head
+            self.head = new_node
 
-        if (line_break['total_width'] - line_break['total_shrink']) > DESIRED_LINE_WIDTH:
+# for i in range(10):
+#     active_nodes.insertAtBegin(i + 1)
+
+# current_node = active_nodes.head
+# for i in range(10):
+#     print(current_node.data)
+#     current_node = current_node.next
+
+class BreakpointNode:
+    def __init__(self, index):
+        self.index = index
+    
+
+active_nodes = LinkedList()
+active_nodes.insertAtBegin({
+    'current_line': 0,
+    'line_start_position': 0,
+    'line_width': 0.0,
+    'line_sthretch': 0.0,
+    'line_shrink': 0.0,
+    'cumulative_optimum_factor': 0.0
+})
+
+
+active_node = active_nodes.head
+while(True):
+    line_start_position = active_node.data['line_start_position']
+    # The for loop below should start from the beginning of the current line being analyzed
+    index = line_start_position
+    for index in range(len(total_width)):
+
+        current_item = paragraph_items[index]
+        current_width = total_width[index] - active_node.data['line_width']
+        current_stretch = total_sthretch[index] - active_node.data['line_sthretch']
+        current_shrink = total_shrink[index] - active_node.data['line_shrink']
+
+        if (current_width - current_shrink) > DESIRED_LINE_WIDTH:
             # Line is much longer than the ideal, break
+            print("Line is too long, going to check options for next active node")
             break
- 
-      
+
+        if (is_penalty_item(current_item)):
+            adjustment_ratio = calc_adjustment_ratio(
+                current_width, current_stretch, current_shrink
+            )
+            badness_factor = calc_badness_factor(adjustment_ratio)
+            optimum_factor = calc_optimum_factor(
+                badness_factor,
+                current_item.penalty_factor,
+                current_item.flag
+            )
 
 
 
+    if active_node.next == None:
+        break
+    
+    active_node = active_node.next
 
-        line_breaks.append(line_break)
 
-
-[print(br) for br in line_breaks]
