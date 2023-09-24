@@ -1,5 +1,6 @@
 import pandas as pd
 from enum import Enum
+import math
 
 
 csv_filepath = "glyph_positions.csv"
@@ -11,11 +12,11 @@ if n_rows == 0:
 print(glyph_positions)
 
 
-DESIRED_LINE_WIDTH = 900
+DESIRED_LINE_WIDTH = 1200
 CURRENT_FONT_SIZE = 35
 EM_UNIT = CURRENT_FONT_SIZE
-SHRINK_FACTOR = (1 / 9)
-STHRETCH_FACTOR = (1 / 6)
+SHRINK_FACTOR = (1 / 3)
+STHRETCH_FACTOR = (1 / 2)
 DEFAULT_SPACE_BETWEEN_LINES = 30
 
 
@@ -157,24 +158,90 @@ def get_total_width_at_range(start_index, end_index):
 
 
 
-start_index_of_current_line = 0
+def possible_line_break(break_position_index,
+                        line_start_index,
+                        penalty_factor,
+                        current_line_width):
+
+    return {
+        'line_start_index': line_start_index,
+        'break_position_index': break_position_index,
+        'penalty_factor': penalty_factor,
+        'total_width': current_line_width['total_width'],
+        'total_stretch': current_line_width['total_stretch'],
+        'total_shrink': current_line_width['total_shrink']
+    }
+
+
+def calc_adjustment_ratio(total_width, total_stretch, total_shrink):
+    adjustment_ratio = 0.0
+
+    if total_width < DESIRED_LINE_WIDTH:
+        adjustment_ratio = (DESIRED_LINE_WIDTH - total_width) / total_stretch
+    
+    if total_width > DESIRED_LINE_WIDTH:
+        adjustment_ratio = (DESIRED_LINE_WIDTH - total_width) / total_shrink
+    
+    return adjustment_ratio
+
+
+def calc_badness_factor(adjustment_ratio):
+    badness_factor = 1000
+
+    if adjustment_ratio >= -1:
+        badness_factor = 100 * abs(adjustment_ratio)
+    
+    return badness_factor
+
+
+
+
+def calc_optimum_factor(badness_factor, penalty_factor, hyphen_flag):
+
+    if penalty_factor >= 0.0:
+        optimum_factor = ((1 + badness_factor + penalty_factor) ** 2) + hyphen_flag
+
+    elif penalty_factor > -1000 and penalty_factor < 0:
+        optimum_factor = ((1 + badness_factor) ** 2) - (penalty_factor ** 2) + hyphen_flag
+
+    else:
+        optimum_factor = ((1 + badness_factor) ** 2) + hyphen_flag
+
+    return optimum_factor
+
+
+
+
+
+
+
+line_breaks = list()
+line_start_index = 0
 for index in range(len(paragraph_items)):
     current_item = paragraph_items[index]
     if is_penalty_item(current_item):
         current_line_width = get_total_width_at_range(
-            start_index_of_current_line,
+            line_start_index,
             index
         )
 
-        width_perfect_fit = current_line_width['total_width'] == DESIRED_LINE_WIDTH
-        width_smaller_than_ideal = current_line_width['total_width'] < DESIRED_LINE_WIDTH
-        width_bigger_than_ideal = current_line_width['total_width'] > DESIRED_LINE_WIDTH
-        can_stretch_to_ideal = (current_line_width['total_width'] + current_line_width['total_stretch']) >= DESIRED_LINE_WIDTH
-        can_shrink_to_ideal = (current_line_width['total_width'] - current_line_width['total_shrink']) <= DESIRED_LINE_WIDTH
+        line_break = possible_line_break(
+            index,
+            line_start_index,
+            current_item.penalty_factor,
+            current_line_width
+        )
+
+        if (line_break['total_width'] - line_break['total_shrink']) > DESIRED_LINE_WIDTH:
+            # Line is much longer than the ideal, break
+            break
  
-        if width_smaller_than_ideal and can_stretch_to_ideal:
-            continue
+      
 
 
 
-[item.print() for item in paragraph_items]
+
+        line_breaks.append(line_break)
+
+
+[print(br) for br in line_breaks]
